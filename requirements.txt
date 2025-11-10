@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+pydantic>=2
+SQLAlchemy>=2.0
+python-dotenv
+psutil

@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*__pycache__/*
+monitor.db*
+*pycache*
+.vscode/
+deb_install 
+vqc-monitor-venv
