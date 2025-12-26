@@ -74,3 +74,14 @@ def get_state_timelines(
             "end_time": r.end_time,
         } for r in rows
     ]
+
+@router.get("/ui/stats")
+def get_ui_stats_bucketed(
+    start: int = Query(..., description="epoch ms"),
+    end:   int = Query(..., description="epoch ms"),
+    max_points: int = Query(DEFAULT_MAX_POINTS, ge=10, le=1000),
+    bucket_ms: int | None = Query(None, ge=5000) ,  # tối thiểu 5000ms để tránh 0
+    db = Depends(get_db)
+):
+    stats = repo.get_ui_samples(db, start, end, max_points, bucket_ms)
+    return stats

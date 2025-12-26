@@ -2,7 +2,7 @@ from math import ceil
 from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import select, text
-from vqc_monitor.db.models import Container, ContainerAlert, ContainerStateTimeline, Sample
+from vqc_monitor.db.models import Container, ContainerAlert, ContainerStateTimeline, Sample, UI_Sample
 from vqc_monitor.db.base import SessionLocal
 from vqc_monitor.core.config import ContainerInfo, reload_list_services
 from vqc_monitor.db.models import App
@@ -334,4 +334,57 @@ def clean_old_records(db: Session, retention_days: int):
         {"cutoff_ts": cutoff_ts}
     )
 
+    # Xoa UI samples cũ
+    db.execute(
+        text("DELETE FROM ui_samples WHERE ts_ms < :cutoff_ts"),
+        {"cutoff_ts": cutoff_ts}
+    )
+
     db.commit()
+
+def get_ui_samples(db: Session, ts_from: int, ts_to: int, max_points: int = 1000, bucket_ms: Optional[int] = 5000):
+    # Tính bucket_ms nếu không truyền
+    if bucket_ms is None:
+        bucket_ms = max(1, ceil((ts_to - ts_from) / max(1, min(max_points, 1000))))
+
+    sql = text("""
+      SELECT
+        ((ts_ms / :bucket_ms) * :bucket_ms) AS t,
+        AVG(cpu_percent) AS cpu_avg,
+        MIN(cpu_percent) AS cpu_min,
+        MAX(cpu_percent) AS cpu_max,
+        AVG(mem_bytes)   AS mem_avg,
+        MIN(mem_bytes)   AS mem_min,
+        MAX(mem_bytes)   AS mem_max
+      FROM ui_samples
+      WHERE ts_ms BETWEEN :start AND :end
+      GROUP BY t
+      ORDER BY t ASC
+    """)
+    rows = db.execute(sql, {
+        "bucket_ms": bucket_ms,
+        "start": ts_from,
+        "end": ts_to
+    }).mappings().all()
+
+    return {
+        "start": ts_from,
+        "end": ts_to,
+        "bucket_ms": bucket_ms,
+        "points": [
+            {
+                "t": int(r["t"]),
+                "cpu_avg": float(r["cpu_avg"]) if r["cpu_avg"] is not None else None,
+                "cpu_min": float(r["cpu_min"]) if r["cpu_min"] is not None else None,
+                "cpu_max": float(r["cpu_max"]) if r["cpu_max"] is not None else None,
+                "mem_avg": int(r["mem_avg"]) if r["mem_avg"] is not None else None,
+                "mem_min": int(r["mem_min"]) if r["mem_min"] is not None else None,
+                "mem_max": int(r["mem_max"]) if r["mem_max"] is not None else None,
+            } for r in rows
+        ]
+    }
+
+def save_ui_sample(db: Session, ts_ms: int, cpu: float, mem: int):
+    s = UI_Sample(ts_ms=ts_ms, cpu_percent=cpu, mem_bytes=mem)
+    db.merge(s)  # upsert theo ts_ms
+    db.flush()

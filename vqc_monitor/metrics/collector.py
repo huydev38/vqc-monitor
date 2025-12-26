@@ -2,7 +2,7 @@ import asyncio, time
 from vqc_monitor.core.config import settings
 from vqc_monitor.db.base import SessionLocal
 from vqc_monitor.db import repo
-from vqc_monitor.metrics.cgroup import snapshot, compute_rates
+from vqc_monitor.metrics.cgroup import get_service_uptime, snapshot, compute_rates
 from vqc_monitor.metrics import system as sysm
 import subprocess
 import shlex
@@ -55,7 +55,7 @@ class Collector:
                     # ↑ Nếu muốn riêng Disk/Net, hãy mở rộng bảng, hoặc thêm cột net_rx/tx_Bps.
                 self.sys_prev = (sys_now, t1)
                 save_container_metrics(list(settings.CONTAINERS.keys()), db)
-
+                save_ui_metrics(db)
                 db.commit()
             await asyncio.sleep(max(0, interval))
 
@@ -245,3 +245,35 @@ def save_container_metrics(containers: list[str], db):
                     repo.open_or_close_state_timeline_container(db, name, "stopped")
                 else:
                     repo.open_or_close_state_timeline_container(db, name, "running")
+
+def get_ui_metrics():
+    ui_name=settings.UI_NAME
+    try:
+        pid_cmd = f"pgrep -f {ui_name}"
+        pid_result = subprocess.run(shlex.split(pid_cmd), capture_output=True, text=True, check=True)
+        pid = pid_result.stdout.strip().split('\n')[0]
+        top_cmd = f"top -b -n 1 -p {pid}"
+        top_result = subprocess.run(shlex.split(top_cmd), capture_output=True, text=True, check=True)
+        lines = top_result.stdout.strip().split('\n')
+        if len(lines) < 8:
+            return None
+        data_line = lines[7]
+        parts = data_line.split()
+        cpu_percent = float(parts[8])
+        mem_bytes = int(float(parts[9]) * 1024)  # Convert KiB to Bytes
+        return {
+            "cpu_percent": cpu_percent,
+            "mem_bytes": mem_bytes
+        }
+    except Exception as e:
+        print(f"Lỗi khi lấy UI metrics: {e}")
+        return None
+
+def save_ui_metrics(db):
+    metrics = get_ui_metrics()
+    if metrics:
+        repo.insert_ui_sample(
+            db, int(time.time()*1000),
+            metrics["cpu_percent"],
+            metrics["mem_bytes"]
+        )

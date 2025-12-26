@@ -7,7 +7,7 @@ from vqc_monitor.metrics.cgroup import snapshot as cg_snapshot, compute_rates as
 from vqc_monitor.metrics.system import snapshot as sys_snapshot, compute_rates as sys_rates
 from vqc_monitor.core.config import resolve_service_to_cgroup, settings, list_services
 from vqc_monitor.metrics.cgroup import get_service_uptime
-from vqc_monitor.metrics.collector import get_metrics_from_containers
+from vqc_monitor.metrics.collector import get_metrics_from_containers, get_ui_metrics
 
 TAIL_DEFAULT = 200
 hub = LogHub()
@@ -223,3 +223,25 @@ async def ws_containers(
     except WebSocketDisconnect:
         return
     
+@router.websocket("/ws/ui")
+async def ws_ui_metrics(
+    ws: WebSocket,
+    interval_ms: int = Query(1000, ge=50, le=60000),
+):
+    """
+    WebSocket để gửi số liệu realtime của UI (toàn hệ thống).
+    """
+    await ws.accept()
+    try:
+        while True:
+                metrics = get_ui_metrics()
+                if metrics:
+                    payload = {
+                        "ts_ms": int(time.time() * 1000),
+                        "cpu_percent": metrics["cpu_percent"],
+                        "mem_bytes": metrics["mem_bytes"],
+                    }
+                    await ws.send_text(json.dumps(payload))
+                await asyncio.sleep(max(0.05, interval_ms / 1000))
+    except WebSocketDisconnect:
+        return

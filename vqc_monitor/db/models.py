@@ -21,6 +21,13 @@ class Sample(Base):
     io_write_Bps: Mapped[float] = mapped_column(Float)
     __table_args__ = (PrimaryKeyConstraint("app_id", "ts_ms"), )
 
+class UI_Sample(Base):
+    __tablename__ = "ui_samples"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ts_ms: Mapped[int] = mapped_column(BigInteger)                  # epoch ms
+    cpu_percent: Mapped[float] = mapped_column(Float)
+    mem_bytes: Mapped[int] = mapped_column(BigInteger)
+
 class Alert(Base):
     __tablename__ = "alerts"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

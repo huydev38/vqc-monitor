@@ -28,6 +28,7 @@ class Container(BaseModel):
 
 
 class FileConfig(BaseModel):
+    ui_name: str = "vqc_ui"
     sample_interval_ms: int = 3000
     retention_days: int = 30
     cpu_threshold: float = 80
@@ -60,6 +61,7 @@ class ContainerInfo(BaseModel):
 
 class Settings(BaseModel):
     DB_PATH: str = "monitor.db"
+    UI_NAME: str = "vqc_ui"
     SAMPLE_INTERVAL_MS: int = 1000
     RETENTION_DAYS: int = 30
     CPU_THRESHOLD: float = 80
@@ -77,6 +79,7 @@ class Settings(BaseModel):
         if path.exists():
             data = yaml.safe_load(path.read_text()) or {}
         fc = FileConfig(**data)
+        self.UI_NAME = fc.ui_name
         self.SAMPLE_INTERVAL_MS = fc.sample_interval_ms
         self.RETENTION_DAYS = fc.retention_days
         self.CPU_THRESHOLD = fc.cpu_threshold
